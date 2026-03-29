@@ -185,9 +185,9 @@ function set_queries(frm) {
 }
 
 async function load_grade_rows(frm) {
-	if (!frm.doc.class_group || !frm.doc.academic_year) {
+	if (!frm.doc.class_group || !frm.doc.academic_year || !frm.doc.teacher) {
 		frappe.msgprint(
-			__("Por favor, seleccione a Turma e o Ano Lectivo antes de carregar as linhas.")
+			__("Por favor, seleccione o Professor, a Turma e o Ano Lectivo antes de carregar as linhas.")
 		);
 		return;
 	}
@@ -198,6 +198,7 @@ async function load_grade_rows(frm) {
 		args: {
 			class_group: frm.doc.class_group,
 			academic_year: frm.doc.academic_year,
+			teacher: frm.doc.teacher,
 		},
 	});
 

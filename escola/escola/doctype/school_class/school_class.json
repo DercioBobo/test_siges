@@ -18,6 +18,7 @@
   "default_teacher",
   "column_break_3",
   "minimum_passing_grade",
+  "assessment_scheme",
   "section_break_notes",
   "notes"
  ],
@@ -101,6 +102,13 @@
    "label": "Nota Mínima de Aprovação",
    "default": "10",
    "description": "Nota mínima para aprovação nesta classe."
+  },
+  {
+   "fieldname": "assessment_scheme",
+   "fieldtype": "Link",
+   "label": "Modelo de Avaliação",
+   "options": "Assessment Scheme",
+   "description": "Modelo de avaliação padrão desta classe."
   },
   {
    "fieldname": "section_break_notes",

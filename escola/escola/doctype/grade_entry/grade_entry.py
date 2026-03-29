@@ -6,11 +6,11 @@ from frappe.model.document import Document
 
 
 @frappe.whitelist()
-def get_students_and_subjects(class_group, academic_year):
+def get_students_and_subjects(class_group, academic_year, teacher=None):
     """Return Cartesian product of active students × active subjects for a class group.
 
     Called by the client-side "Carregar Alunos e Disciplinas" button.
-    Returns a list of dicts: {student, subject, teacher}.
+    Returns a list of dicts: {student, subject, teacher}. Filters subjects by teacher if provided.
     """
     student_assignments = frappe.get_all(
         "Student Group Assignment",
@@ -36,9 +36,13 @@ def get_students_and_subjects(class_group, academic_year):
     
     subject_assignments = []
     if assignment_doc:
+        filters = {"parent": assignment_doc[0].name}
+        if teacher:
+            filters["teacher"] = teacher
+            
         subject_assignments = frappe.get_all(
             "Class Subject Assignment Line",
-            filters={"parent": assignment_doc[0].name},
+            filters=filters,
             fields=["subject", "teacher"],
             order_by="subject asc"
         )
@@ -127,21 +131,23 @@ class GradeEntry(Document):
                 "academic_term": self.academic_term,
                 "class_group": self.class_group,
                 "evaluation_type": self.evaluation_type,
+                "teacher": self.teacher,
                 "name": ("!=", self.name),
             },
             "name",
         )
         if existing:
             frappe.throw(
-                _("Já existe uma Pauta de Notas para a Turma <b>{0}</b>, "
-                  "Período <b>{1}</b> e Tipo de Avaliação <b>{2}</b>: "
-                  "<b>{3}</b>.").format(
+                _("Já existe um registo de Notas para a Turma <b>{0}</b>, "
+                  "Período <b>{1}</b> e Tipo de Avaliação <b>{2}</b> do Professor <b>{3}</b>: "
+                  "<b>{4}</b>.").format(
                     self.class_group,
                     self.academic_term,
                     self.evaluation_type,
+                    self.teacher,
                     existing,
                 ),
-                title=_("Pauta duplicada"),
+                title=_("Registo duplicado"),
             )
 
     # ------------------------------------------------------------------
