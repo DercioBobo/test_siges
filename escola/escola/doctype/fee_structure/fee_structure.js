@@ -1,5 +1,7 @@
 frappe.ui.form.on("Fee Structure", {
     refresh(frm) {
+        frm.set_query("school_class", () => ({ filters: { is_active: 1 } }));
+
         if (!frm.doc.__islocal) {
             _show_total(frm);
         }
@@ -11,6 +13,14 @@ frappe.ui.form.on("Fee Structure", {
 
 frappe.ui.form.on("Fee Structure Line", {
     amount(frm) { _show_total(frm); },
+
+    before_fee_lines_add(frm, cdt, cdn) {
+        frappe.db.get_single_value("School Settings", "default_fee_item_code").then(item_code => {
+            if (item_code) {
+                frappe.model.set_value(cdt, cdn, "item_code", item_code);
+            }
+        });
+    },
 });
 
 function _show_total(frm) {

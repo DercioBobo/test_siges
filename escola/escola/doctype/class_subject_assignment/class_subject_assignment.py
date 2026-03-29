@@ -5,72 +5,75 @@ from frappe.model.document import Document
 
 class ClassSubjectAssignment(Document):
     def validate(self):
-        self._validate_class_group_compatibility()
-        self._validate_no_duplicate_active_subject()
-        self._validate_teacher_active()
+        self._validate_unique_assignment()
+        self._validate_no_duplicate_subjects_in_table()
+        self._validate_teachers_active()
 
-    def _validate_class_group_compatibility(self):
-        if not self.class_group:
-            return
-        cg = frappe.db.get_value(
-            "Class Group",
-            self.class_group,
-            ["academic_year", "school_class", "is_active"],
-            as_dict=True,
-        )
-        if not cg:
-            return
-        if cg.academic_year != self.academic_year:
-            frappe.throw(
-                _("A Turma <b>{0}</b> pertence ao Ano Lectivo <b>{1}</b>, "
-                  "não ao Ano Lectivo <b>{2}</b>.").format(
-                    self.class_group, cg.academic_year, self.academic_year
-                ),
-                title=_("Turma incompatível"),
-            )
-        if self.school_class and cg.school_class != self.school_class:
-            frappe.throw(
-                _("A Turma <b>{0}</b> pertence à Classe <b>{1}</b>, "
-                  "não à Classe <b>{2}</b>.").format(
-                    self.class_group, cg.school_class, self.school_class
-                ),
-                title=_("Turma incompatível"),
-            )
-        if not cg.is_active:
-            frappe.throw(
-                _("A Turma <b>{0}</b> não está activa.").format(self.class_group),
-                title=_("Turma inactiva"),
-            )
-
-    def _validate_no_duplicate_active_subject(self):
+    def _validate_unique_assignment(self):
         if not self.is_active:
             return
-        existing = frappe.db.get_value(
-            "Class Subject Assignment",
-            {
-                "class_group": self.class_group,
-                "subject": self.subject,
-                "is_active": 1,
-                "name": ("!=", self.name),
-            },
-            "name",
-        )
+        
+        filters = {
+            "school_class": self.school_class,
+            "academic_year": self.academic_year,
+            "is_active": 1,
+            "name": ("!=", self.name)
+        }
+        existing = frappe.db.get_value("Class Subject Assignment", filters, "name")
         if existing:
             frappe.throw(
-                _("A disciplina <b>{0}</b> já está atribuída à Turma <b>{1}</b> "
-                  "de forma activa: <b>{2}</b>. Desactive a atribuição anterior "
-                  "antes de criar uma nova.").format(
-                    self.subject, self.class_group, existing
+                _("J\u00e1 existe uma Atribui\u00e7\u00e3o Activa para a Classe <b>{0}</b> no Ano Lectivo <b>{1}</b>: <b>{2}</b>.").format(
+                    self.school_class, self.academic_year, existing
                 ),
-                title=_("Atribuição duplicada"),
+                title=_("Atribui\u00e7\u00e3o Duplicada")
             )
 
-    def _validate_teacher_active(self):
-        if not self.teacher:
+    def _validate_no_duplicate_subjects_in_table(self):
+        seen = set()
+        for row in self.get("subjects", []):
+            if row.subject:
+                if row.subject in seen:
+                    frappe.throw(
+                        _("A disciplina <b>{0}</b> aparece mais que uma vez na tabela.").format(row.subject),
+                        title=_("Disciplina Duplicada")
+                    )
+                seen.add(row.subject)
+
+    def _validate_teachers_active(self):
+        teacher_names = [row.teacher for row in self.get("subjects", []) if row.teacher]
+        if not teacher_names:
             return
-        is_active = frappe.db.get_value("Teacher", self.teacher, "is_active")
-        if not is_active:
+            
+        inactive_teachers = frappe.get_all("Teacher", filters={"name": ("in", teacher_names), "is_active": 0}, pluck="name")
+        if inactive_teachers:
             frappe.throw(
-                _("O professor <b>{0}</b> não está activo.").format(self.teacher),
-                title=_("Professor inactivo"),
+                _("O(s) seguinte(s) professor(es) n\u00e3o est\u00e1(\u00e3o) activo(s): <b>{0}</b>").format(", ".join(inactive_teachers)),
+                title=_("Professor Inactivo")
             )
+
+
+@frappe.whitelist()
+def get_curriculum_subjects(school_class, academic_year=None):
+    filters = {"school_class": school_class, "is_active": 1}
+    curriculums = frappe.get_all("Class Curriculum", filters=filters, order_by="creation desc")
+    
+    if not curriculums:
+        return []
+        
+    curriculum = frappe.get_doc("Class Curriculum", curriculums[0].name)
+    default_teacher = frappe.db.get_value("School Class", school_class, "default_teacher")
+    
+    result = []
+    for line in curriculum.subject_lines:
+        is_spec = frappe.db.get_value("Subject", line.subject, "is_specialized_subject")
+        
+        teacher = None
+        if not is_spec and default_teacher:
+            teacher = default_teacher
+            
+        result.append({
+            "subject": line.subject,
+            "teacher": teacher
+        })
+        
+    return result

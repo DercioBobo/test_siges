@@ -7,14 +7,13 @@
  "field_order": [
   "naming_series",
   "section_break_identification",
-  "academic_year",
   "school_class",
-  "class_group",
+  "academic_year",
   "column_break_1",
-  "subject",
-  "teacher",
-  "section_break_status",
   "is_active",
+  "section_break_subjects",
+  "fetch_subjects",
+  "subjects",
   "section_break_notes",
   "notes"
  ],
@@ -22,7 +21,7 @@
   {
    "fieldname": "naming_series",
    "fieldtype": "Select",
-   "label": "Série",
+   "label": "S\u00e9rie",
    "options": "CSA-.YYYY.-.####",
    "default": "CSA-.YYYY.-.####",
    "hidden": 1,
@@ -31,15 +30,7 @@
   {
    "fieldname": "section_break_identification",
    "fieldtype": "Section Break",
-   "label": "Identificação"
-  },
-  {
-   "fieldname": "academic_year",
-   "fieldtype": "Link",
-   "label": "Ano Lectivo",
-   "options": "Academic Year",
-   "reqd": 1,
-   "in_list_view": 1
+   "label": "Identifica\u00e7\u00e3o"
   },
   {
    "fieldname": "school_class",
@@ -50,37 +41,16 @@
    "in_list_view": 1
   },
   {
-   "fieldname": "class_group",
+   "fieldname": "academic_year",
    "fieldtype": "Link",
-   "label": "Turma",
-   "options": "Class Group",
+   "label": "Ano Lectivo",
+   "options": "Academic Year",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "A turma deve pertencer ao Ano Lectivo e à Classe seleccionados."
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "subject",
-   "fieldtype": "Link",
-   "label": "Disciplina",
-   "options": "Subject",
-   "reqd": 1,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "teacher",
-   "fieldtype": "Link",
-   "label": "Professor Responsável",
-   "options": "Teacher",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "section_break_status",
-   "fieldtype": "Section Break",
-   "label": "Estado"
   },
   {
    "fieldname": "is_active",
@@ -90,14 +60,31 @@
    "in_list_view": 1
   },
   {
+   "fieldname": "section_break_subjects",
+   "fieldtype": "Section Break",
+   "label": "Disciplinas"
+  },
+  {
+   "fieldname": "fetch_subjects",
+   "fieldtype": "Button",
+   "label": "Carregar Disciplinas"
+  },
+  {
+   "fieldname": "subjects",
+   "fieldtype": "Table",
+   "label": "Disciplinas",
+   "options": "Class Subject Assignment Line",
+   "reqd": 1
+  },
+  {
    "fieldname": "section_break_notes",
    "fieldtype": "Section Break",
-   "label": "Observações"
+   "label": "Observa\u00e7\u00f5es"
   },
   {
    "fieldname": "notes",
    "fieldtype": "Small Text",
-   "label": "Observações"
+   "label": "Observa\u00e7\u00f5es"
   }
  ],
  "links": [],
@@ -139,7 +126,7 @@
    "write": 0
   }
  ],
- "sort_field": "class_group",
+ "sort_field": "school_class",
  "sort_order": "ASC",
  "track_changes": 1
 }

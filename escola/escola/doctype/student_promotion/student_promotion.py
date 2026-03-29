@@ -144,9 +144,9 @@ def generate_promotion(doc_name):
 @frappe.whitelist()
 def generate_next_year_enrollments(promotion_name):
     """
-    Create Student Enrollment + Student Group Assignment for every Promovido student.
+    Create Student Group Assignment + Inscricao for every Promovido/Concluído student.
     Requires status == "Finalizado" and next_academic_year to be set.
-    Idempotent: skips students who already have an enrollment for next_academic_year.
+    Idempotent: skips students who already have an active SGA for next_academic_year.
     """
     doc = frappe.get_doc("Student Promotion", promotion_name)
 
@@ -162,6 +162,7 @@ def generate_next_year_enrollments(promotion_name):
             title=_("Estado incorrecto"),
         )
 
+    today = frappe.utils.today()
     created, skipped, errors = 0, 0, []
 
     for row in doc.promotion_rows:
@@ -175,37 +176,25 @@ def generate_next_year_enrollments(promotion_name):
             )
             continue
 
-        # Idempotency check
+        # Idempotency: skip if already has active SGA for next year
         if frappe.db.exists(
-            "Student Enrollment",
-            {"student": row.student, "academic_year": doc.next_academic_year},
+            "Student Group Assignment",
+            {"student": row.student, "academic_year": doc.next_academic_year, "status": "Activa"},
         ):
             skipped += 1
             continue
 
         try:
-            enrol = frappe.get_doc({
-                "doctype": "Student Enrollment",
-                "student": row.student,
-                "academic_year": doc.next_academic_year,
-                "school_class": row.next_school_class,
-                "enrollment_date": frappe.utils.today(),
-                "enrollment_status": "Activa",
-                "enrollment_type": "Transitou",
-            })
-            enrol.insert(ignore_permissions=True)
-
-            assign = frappe.get_doc({
+            frappe.get_doc({
                 "doctype": "Student Group Assignment",
                 "student": row.student,
                 "academic_year": doc.next_academic_year,
-                "enrollment": enrol.name,
                 "school_class": row.next_school_class,
                 "class_group": row.next_class_group,
-                "assignment_date": frappe.utils.today(),
+                "assignment_date": today,
                 "status": "Activa",
-            })
-            assign.insert(ignore_permissions=True)
+                "notes": _("Criado automaticamente pela Promoção {0}.").format(doc.name),
+            }).insert(ignore_permissions=True)
             created += 1
 
         except Exception as e:

@@ -5,55 +5,23 @@ from frappe.model.document import Document
 
 class StudentGroupAssignment(Document):
     def validate(self):
-        self._validate_enrollment_match()
         self._validate_class_group_belongs()
         self._validate_duplicate_active_assignment()
         self._validate_class_group_capacity()
 
-    def _validate_enrollment_match(self):
-        if not self.enrollment:
-            return
-        enr = frappe.db.get_value(
-            "Student Enrollment",
-            self.enrollment,
-            ["student", "academic_year", "school_class", "enrollment_status"],
-            as_dict=True,
-        )
-        if not enr:
-            frappe.throw(
-                _("A Inscrição <b>{0}</b> não foi encontrada.").format(self.enrollment),
-                title=_("Inscrição inválida"),
-            )
-        if enr.student != self.student:
-            frappe.throw(
-                _("A Inscrição <b>{0}</b> não pertence ao aluno seleccionado.").format(
-                    self.enrollment
-                ),
-                title=_("Inscrição incompatível"),
-            )
-        if enr.academic_year != self.academic_year:
-            frappe.throw(
-                _("O Ano Lectivo da inscrição (<b>{0}</b>) não coincide com o "
-                  "Ano Lectivo seleccionado (<b>{1}</b>).").format(
-                    enr.academic_year, self.academic_year
-                ),
-                title=_("Ano Lectivo incompatível"),
-            )
-        if self.school_class and enr.school_class != self.school_class:
-            frappe.throw(
-                _("A Classe da inscrição (<b>{0}</b>) não coincide com a Classe "
-                  "seleccionada (<b>{1}</b>).").format(
-                    enr.school_class, self.school_class
-                ),
-                title=_("Classe incompatível"),
-            )
-        if enr.enrollment_status != "Activa":
-            frappe.throw(
-                _("A Inscrição <b>{0}</b> não está activa (estado actual: "
-                  "<b>{1}</b>). Apenas inscrições activas podem receber "
-                  "alocação de turma.").format(self.enrollment, enr.enrollment_status),
-                title=_("Inscrição inactiva"),
-            )
+    def after_insert(self):
+        _roster_sync(self)
+        _sync_student_current_turma(self)
+
+    def on_update(self):
+        _roster_sync(self)
+        _sync_student_current_turma(self)
+
+    def on_trash(self):
+        _roster_remove(self.name)
+        _update_student_count(self.class_group)
+
+    # ------------------------------------------------------------------
 
     def _validate_class_group_belongs(self):
         if not self.class_group:
@@ -134,3 +102,75 @@ class StudentGroupAssignment(Document):
                   "<b>{1}</b> alunos.").format(self.class_group, max_students),
                 title=_("Capacidade esgotada"),
             )
+
+
+# ------------------------------------------------------------------
+# Roster sync helpers (called from lifecycle hooks and rebuild_roster)
+# ------------------------------------------------------------------
+
+def _sync_student_current_turma(sga):
+    """Keep current_class_group and current_school_class on Student in sync with active SGA."""
+    if sga.status == "Activa":
+        frappe.db.set_value(
+            "Student", sga.student,
+            {"current_class_group": sga.class_group, "current_school_class": sga.school_class},
+            update_modified=False,
+        )
+    else:
+        # If another active SGA exists (shouldn't normally), use it; otherwise clear.
+        active = frappe.db.get_value(
+            "Student Group Assignment",
+            {"student": sga.student, "status": "Activa", "name": ("!=", sga.name)},
+            ["class_group", "school_class"],
+            as_dict=True,
+        )
+        frappe.db.set_value(
+            "Student", sga.student,
+            {
+                "current_class_group": active.class_group if active else None,
+                "current_school_class": active.school_class if active else None,
+            },
+            update_modified=False,
+        )
+
+
+def _roster_sync(sga):
+    """Remove any existing roster row for this assignment, then re-add if still active."""
+    # Find the class_group this row currently lives in (may differ from sga.class_group
+    # if the assignment was just moved to a different group)
+    old_parents = frappe.db.get_all(
+        "Class Group Student",
+        filters={"assignment": sga.name},
+        fields=["name", "parent"],
+        ignore_permissions=True,
+    )
+
+    affected_groups = {row.parent for row in old_parents}
+    _roster_remove(sga.name)
+
+    if sga.status == "Activa":
+        frappe.get_doc({
+            "doctype": "Class Group Student",
+            "parent": sga.class_group,
+            "parentfield": "students",
+            "parenttype": "Class Group",
+            "student": sga.student,
+            "assignment": sga.name,
+        }).insert(ignore_permissions=True)
+        affected_groups.add(sga.class_group)
+
+    for cg_name in affected_groups:
+        _update_student_count(cg_name)
+
+
+def _roster_remove(assignment_name):
+    frappe.db.delete("Class Group Student", {"assignment": assignment_name})
+
+
+def _update_student_count(class_group_name):
+    if not class_group_name:
+        return
+    count = frappe.db.count("Class Group Student", {"parent": class_group_name})
+    frappe.db.set_value(
+        "Class Group", class_group_name, "student_count", count, update_modified=False
+    )

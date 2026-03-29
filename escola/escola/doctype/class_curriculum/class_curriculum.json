@@ -6,15 +6,14 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
-  "section_break_header",
-  "class_group",
-  "assessment_scheme",
-  "column_break_1",
-  "academic_year",
+  "sb_identification",
   "school_class",
-  "section_break_rows",
-  "assessment_rows",
-  "section_break_notes",
+  "academic_year",
+  "column_break_1",
+  "is_active",
+  "sb_lines",
+  "subject_lines",
+  "sb_notes",
   "notes"
  ],
  "fields": [
@@ -22,25 +21,15 @@
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "label": "Série",
-   "options": "ANN-.YYYY.-.####",
-   "default": "ANN-.YYYY.-.####",
+   "options": "CUR-.YYYY.-.####",
+   "default": "CUR-.YYYY.-.####",
    "hidden": 1,
    "print_hide": 1
   },
   {
-   "fieldname": "section_break_header",
+   "fieldname": "sb_identification",
    "fieldtype": "Section Break",
-   "label": "Cabeçalho"
-  },
-  {
-   "fieldname": "academic_year",
-   "fieldtype": "Link",
-   "label": "Ano Lectivo",
-   "options": "Academic Year",
-   "reqd": 1,
-   "in_list_view": 1,
-   "fetch_from": "class_group.academic_year",
-   "fetch_if_empty": 1
+   "label": "Identificação"
   },
   {
    "fieldname": "school_class",
@@ -49,42 +38,41 @@
    "options": "School Class",
    "reqd": 1,
    "in_list_view": 1,
-   "fetch_from": "class_group.school_class",
-   "fetch_if_empty": 1
+   "search_index": 1
+  },
+  {
+   "fieldname": "academic_year",
+   "fieldtype": "Link",
+   "label": "Ano Lectivo",
+   "options": "Academic Year",
+   "in_list_view": 1,
+   "description": "Opcional. Se não preenchido, a grelha aplica-se a todos os anos lectivos."
   },
   {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "class_group",
-   "fieldtype": "Link",
-   "label": "Turma",
-   "options": "Class Group",
-   "reqd": 1,
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Activa",
+   "default": "1",
    "in_list_view": 1
   },
   {
-   "fieldname": "assessment_scheme",
-   "fieldtype": "Link",
-   "label": "Modelo de Avaliação",
-   "options": "Assessment Scheme",
-   "reqd": 0,
-   "in_list_view": 0
-  },
-  {
-   "fieldname": "section_break_rows",
+   "fieldname": "sb_lines",
    "fieldtype": "Section Break",
-   "label": "Resultados"
+   "label": "Disciplinas"
   },
   {
-   "fieldname": "assessment_rows",
+   "fieldname": "subject_lines",
    "fieldtype": "Table",
-   "label": "Linhas de Avaliação",
-   "options": "Annual Assessment Row"
+   "label": "Disciplinas",
+   "options": "Class Curriculum Line",
+   "reqd": 1
   },
   {
-   "fieldname": "section_break_notes",
+   "fieldname": "sb_notes",
    "fieldtype": "Section Break",
    "label": "Observações"
   },
@@ -98,7 +86,7 @@
  "modified": "2024-01-01 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Escola",
- "name": "Annual Assessment",
+ "name": "Class Curriculum",
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
@@ -129,10 +117,12 @@
    "create": 0,
    "delete": 0,
    "read": 1,
-   "role": "Professor"
+   "role": "Professor",
+   "write": 0
   }
  ],
- "sort_field": "academic_year",
- "sort_order": "DESC",
+ "sort_field": "school_class",
+ "sort_order": "ASC",
+ "title_field": "school_class",
  "track_changes": 1
 }

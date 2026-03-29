@@ -23,16 +23,25 @@ def get_students_and_subjects(class_group, academic_year):
         order_by="student asc",
     )
 
-    subject_assignments = frappe.get_all(
+    school_class = frappe.db.get_value("Class Group", class_group, "school_class")
+    assignment_doc = frappe.get_all(
         "Class Subject Assignment",
         filters={
-            "class_group": class_group,
+            "school_class": school_class,
             "academic_year": academic_year,
             "is_active": 1,
         },
-        fields=["subject", "teacher"],
-        order_by="subject asc",
+        limit=1
     )
+    
+    subject_assignments = []
+    if assignment_doc:
+        subject_assignments = frappe.get_all(
+            "Class Subject Assignment Line",
+            filters={"parent": assignment_doc[0].name},
+            fields=["subject", "teacher"],
+            order_by="subject asc"
+        )
 
     if not student_assignments:
         return {"error": "no_students"}
@@ -279,28 +288,33 @@ class GradeEntry(Document):
         )
 
     def _validate_subjects_assigned(self):
-        if not self.class_group or not self.academic_year:
+        if not self.school_class or not self.academic_year:
             return
-        assigned = set(
-            frappe.get_all(
-                "Class Subject Assignment",
-                filters={
-                    "class_group": self.class_group,
-                    "academic_year": self.academic_year,
-                    "is_active": 1,
-                },
-                pluck="subject",
-            )
+        assignment_doc = frappe.get_all(
+            "Class Subject Assignment",
+            filters={
+                "school_class": self.school_class,
+                "academic_year": self.academic_year,
+                "is_active": 1,
+            },
+            limit=1
         )
+        assigned = set()
+        if assignment_doc:
+            assigned = set(frappe.get_all(
+                "Class Subject Assignment Line",
+                filters={"parent": assignment_doc[0].name},
+                pluck="subject"
+            ))
         if not assigned:
             return  # skip if no assignments exist yet (allow saving during setup)
         for row in self.grade_rows:
             if row.subject and row.subject not in assigned:
                 frappe.throw(
                     _("A disciplina <b>{0}</b> não tem uma Atribuição de "
-                      "Disciplina activa para a Turma <b>{1}</b>. "
+                      "Disciplina activa para a Classe <b>{1}</b>. "
                       "Crie a atribuição antes de lançar notas.").format(
-                        row.subject, self.class_group
+                        row.subject, self.school_class
                     ),
                     title=_("Disciplina não atribuída"),
                 )
