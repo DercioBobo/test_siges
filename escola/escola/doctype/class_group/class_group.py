@@ -25,6 +25,21 @@ class ClassGroup(Document):
 
 
 @frappe.whitelist()
+def get_available_students_for_group(class_group_name):
+    # Get students currently in this group
+    cg = frappe.get_doc("Class Group", class_group_name)
+    existing = set(row.student for row in cg.students)
+    
+    # Get all active students
+    # Try to filter out those who are already in another active class group if that's a rule?
+    # For now, just return all active not in this group.
+    students = frappe.get_all("Student", filters={"current_status": "Activo"}, fields=["name", "full_name", "student_code"], order_by="full_name asc")
+    
+    available = [s for s in students if s.name not in existing]
+    return available
+
+
+@frappe.whitelist()
 def add_students_to_group(class_group_name, students):
     """
     Bulk-create Student Group Assignments for a list of students.
