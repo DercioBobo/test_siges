@@ -52,7 +52,7 @@ fixtures = [
 # App includes — kept minimal
 # -----------------------------------------------------------------
 # app_include_css = []
-# app_include_js = []
+app_include_js = ["/assets/escola/js/escola_utils.js"]
 
 # -----------------------------------------------------------------
 # Website — not used yet
@@ -67,6 +67,7 @@ scheduler_events = {
     # Catches time-based transitions (e.g. due date crossed overnight).
     "daily": [
         "escola.escola.doctype.billing_cycle.penalty.update_all_student_financial_statuses",
+        "escola.escola.doctype.student.student.update_all_student_ages",
     ],
 }
 

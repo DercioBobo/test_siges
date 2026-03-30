@@ -18,7 +18,11 @@
   "default_teacher",
   "column_break_3",
   "minimum_passing_grade",
-  "assessment_scheme",
+  "max_score",
+  "section_break_subjects",
+  "subjects",
+  "section_break_turmas",
+  "turmas_html",
   "section_break_notes",
   "notes"
  ],
@@ -104,11 +108,33 @@
    "description": "Nota mínima para aprovação nesta classe."
   },
   {
-   "fieldname": "assessment_scheme",
-   "fieldtype": "Link",
-   "label": "Modelo de Avaliação",
-   "options": "Assessment Scheme",
-   "description": "Modelo de avaliação padrão desta classe."
+   "fieldname": "max_score",
+   "fieldtype": "Float",
+   "label": "Nota Máxima",
+   "default": "20",
+   "description": "Valor máximo da escala de avaliação (normalmente 20)."
+  },
+  {
+   "fieldname": "section_break_subjects",
+   "fieldtype": "Section Break",
+   "label": "Disciplinas da Classe"
+  },
+  {
+   "fieldname": "subjects",
+   "fieldtype": "Table",
+   "label": "Disciplinas",
+   "options": "School Class Subject",
+   "description": "Lista de disciplinas leccionadas nesta classe. Usada para pré-preencher a Grelha Curricular de cada turma."
+  },
+  {
+   "fieldname": "section_break_turmas",
+   "fieldtype": "Section Break",
+   "label": "Turmas"
+  },
+  {
+   "fieldname": "turmas_html",
+   "fieldtype": "HTML",
+   "label": "Turmas"
   },
   {
    "fieldname": "section_break_notes",

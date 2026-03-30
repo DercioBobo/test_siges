@@ -2,14 +2,34 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Annual Assessment", {
+	onload(frm) {
+		escola.utils.auto_fill_academic_year(frm);
+	},
+
 	refresh(frm) {
 		set_queries(frm);
 
+		// "Calcular" requires the doc to be saved first (server uses doc_name to run the calc).
 		frm.add_custom_button(
 			__("Calcular Avaliação"),
 			() => maybe_calculate(frm),
 			__("Acções")
 		);
+	},
+
+	async class_group(frm) {
+		set_queries(frm);
+		if (!frm.doc.class_group) return;
+
+		// Ensure academic_year is populated from the class group
+		if (!frm.doc.academic_year) {
+			const cg = await frappe.db.get_value(
+				"Class Group", frm.doc.class_group, ["academic_year"]
+			);
+			if (cg && cg.academic_year) {
+				frm.set_value("academic_year", cg.academic_year);
+			}
+		}
 	},
 
 	academic_year(frm) {
@@ -29,7 +49,6 @@ function set_queries(frm) {
 	if (frm.doc.school_class) cg_filters.school_class = frm.doc.school_class;
 
 	frm.set_query("class_group", () => ({ filters: cg_filters }));
-	frm.set_query("assessment_scheme", () => ({ filters: { is_active: 1 } }));
 }
 
 function maybe_calculate(frm) {

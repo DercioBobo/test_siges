@@ -17,11 +17,6 @@
   "column_break_3",
   "class_teacher",
   "is_active",
-  "section_break_model",
-  "teaching_model",
-  "assessment_scheme",
-  "column_break_model",
-  "minimum_passing_grade",
   "section_break_capacity",
   "max_students",
   "student_count",
@@ -107,36 +102,6 @@
    "label": "Turma Activa",
    "default": "1",
    "in_list_view": 1
-  },
-  {
-   "fieldname": "section_break_model",
-   "fieldtype": "Section Break",
-   "label": "Modelo Pedagógico"
-  },
-  {
-   "fieldname": "teaching_model",
-   "fieldtype": "Select",
-   "label": "Modelo de Ensino",
-   "options": "\nProfessor Único\nProfessores por Disciplina",
-   "fetch_from": "school_class.teaching_model",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "assessment_scheme",
-   "fieldtype": "Link",
-   "label": "Modelo de Avaliação",
-   "options": "Assessment Scheme",
-   "description": "Definição de trimestres, semestres, etc."
-  },
-  {
-   "fieldname": "column_break_model",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "minimum_passing_grade",
-   "fieldtype": "Float",
-   "label": "Nota Mínima de Aprovação",
-   "fetch_from": "school_class.minimum_passing_grade"
   },
   {
    "fieldname": "section_break_capacity",

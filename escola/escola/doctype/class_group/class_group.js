@@ -1,366 +1,483 @@
-// Copyright (c) 2024, EntreTech and contributors
-// For license information, please see license.txt
-
 frappe.ui.form.on("Class Group", {
-	refresh(frm) {
-		frm.set_query("class_teacher", () => ({
-			filters: { is_active: 1 },
-		}));
+    onload(frm) {
+        escola.utils.auto_fill_academic_year(frm);
+    },
 
-		if (!frm.is_new()) {
-			// Primary student management buttons (standalone, prominent)
-			frm.add_custom_button(__("Adicionar Aluno(s)"), () => add_students_dialog(frm));
+    refresh(frm) {
+        frm.set_query("class_teacher", () => ({ filters: { is_active: 1 } }));
 
-			const has_students = (frm.doc.students || []).length > 0;
-			if (has_students) {
-				frm.add_custom_button(
-					__("Remover Aluno"),
-					() => remove_student_dialog(frm)
-				);
-			}
+        if (!frm.is_new()) {
+            frm.add_custom_button(__("Gerir Alunos"), () => manage_students_dialog(frm));
 
-			// Secondary navigation
-			frm.add_custom_button(
-				__("Pauta de Notas"),
-				() => frappe.new_doc("Grade Entry", { class_group: frm.doc.name }),
-				__("Criar")
-			);
-			frm.add_custom_button(
-				__("Presença"),
-				() => frappe.new_doc("Student Attendance", { class_group: frm.doc.name }),
-				__("Criar")
-			);
-			frm.add_custom_button(
-				__("Promoção de Alunos"),
-				() => frappe.new_doc("Student Promotion", { class_group: frm.doc.name }),
-				__("Criar")
-			);
+            frm.add_custom_button(
+                __("Pauta de Notas"),
+                () => frappe.new_doc("Grade Entry", { class_group: frm.doc.name }),
+                __("Criar")
+            );
+            frm.add_custom_button(
+                __("Faltas por Período"),
+                () => frappe.new_doc("Term Attendance", { class_group: frm.doc.name }),
+                __("Criar")
+            );
+            frm.add_custom_button(
+                __("Promoção de Alunos"),
+                () => frappe.new_doc("Student Promotion", { class_group: frm.doc.name }),
+                __("Criar")
+            );
+            frm.add_custom_button(
+                __("Ver Alocações"),
+                () => frappe.set_route("List", "Student Group Assignment", { class_group: frm.doc.name }),
+                __("Ver")
+            );
+            frm.add_custom_button(
+                __("Reconstruir Pauta"),
+                () => rebuild_roster(frm),
+                __("Acções")
+            );
+        }
 
-			frm.add_custom_button(
-				__("Ver Alocações"),
-				() => frappe.set_route("List", "Student Group Assignment", {
-					class_group: frm.doc.name,
-				}),
-				__("Ver")
-			);
-
-			frm.add_custom_button(
-				__("Reconstruir Pauta"),
-				() => rebuild_roster(frm),
-				__("Acções")
-			);
-		}
-
-		_render_modern_header(frm);
-	},
+        _render_capacity_badge(frm);
+    },
 });
 
 // ---------------------------------------------------------------------------
-// Student management dialogs
+// Capacity badge
 // ---------------------------------------------------------------------------
 
-function _render_modern_header(frm) {
-    if (frm.is_new()) return;
-    
+function _render_capacity_badge(frm) {
     const count = frm.doc.student_count || 0;
     const max = frm.doc.max_students || 0;
-    
-    let capacity_color = "var(--green-500)";
-    let capacity_bg = "var(--green-50, #E6F6ED)";
-    let capacity_text = "var(--green-700)";
-    let percentage = 0;
-    
-    if (max > 0) {
-        percentage = Math.min(Math.round((count / max) * 100), 100);
-        if (percentage >= 100) { capacity_color = "var(--red-500)"; capacity_bg = "var(--red-50, #FCEEEB)"; capacity_text = "var(--red-700)"; }
-        else if (percentage >= 90) { capacity_color = "var(--orange-500)"; capacity_bg = "var(--orange-50, #FFF5E6)"; capacity_text = "var(--orange-700)"; }
+    if (max > 0 && count >= max) {
+        frm.dashboard.set_headline_alert(
+            __("Turma com capacidade esgotada ({0}/{1} alunos)", [count, max]), "red"
+        );
+    } else if (max > 0) {
+        frm.dashboard.set_headline_alert(
+            __("{0}/{1} alunos", [count, max]),
+            count / max >= 0.9 ? "orange" : "green"
+        );
     }
-    
-    const active_badge = frm.doc.is_active ? 
-        `<span style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: var(--green-100, #D1F0DB); color: var(--green-700); text-transform: uppercase;">Turma Activa</span>` : 
-        `<span style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: var(--gray-200); color: var(--text-muted); text-transform: uppercase;">Encerrada</span>`;
+}
 
-    const html = `
-        <div class="escola-modern-header" style="padding: 20px 24px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; align-items: center; gap: 14px;">
-                        <h2 style="margin: 0; font-weight: 700; color: var(--text-color); font-size: 24px; letter-spacing: -0.5px;">${frm.doc.group_name}</h2>
-                        ${active_badge}
-                    </div>
-                    <div style="font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 16px; margin-top: 4px;">
-                        <span style="display:flex; align-items:center; gap:6px;">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                            ${frm.doc.academic_year || "Sem Ano Lectivo"}
-                        </span>
-                        <span style="display:flex; align-items:center; gap:6px;">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
-                            ${frm.doc.school_class || "Sem Classe"}
-                        </span>
-                        <span style="display:flex; align-items:center; gap:6px;">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                            Prof: <b style="color: var(--text-color);">${frm.doc.class_teacher || "Não Atribuído"}</b>
-                        </span>
-                        ${frm.doc.teaching_model ? `<span style="padding: 2px 8px; background: var(--bg-light-gray); border-radius: 4px; font-size: 11px; font-weight: 600;">${frm.doc.teaching_model}</span>` : ""}
+// ---------------------------------------------------------------------------
+// Styles  (injected once)
+// ---------------------------------------------------------------------------
+
+function _inject_styles() {
+    if (document.getElementById("escola-mgr-styles")) return;
+    const s = document.createElement("style");
+    s.id = "escola-mgr-styles";
+    s.textContent = `
+/* ── shared ─────────────────────────────────────── */
+.escmgr { font-family: var(--font-stack); }
+
+.escmgr .section-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .7px; color: var(--text-muted); margin-bottom: 8px;
+}
+
+/* ── search bar ─────────────────────────────────── */
+.escmgr .search-wrap { position: relative; margin-bottom: 12px; }
+.escmgr .search-wrap svg { position: absolute; left: 11px; top: 50%;
+    transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+.escmgr .search-inp {
+    width: 100%; padding: 9px 14px 9px 36px;
+    border: 1.5px solid var(--border-color); border-radius: 8px;
+    font-size: 13px; background: var(--fg-color); color: var(--text-color);
+    outline: none; transition: border-color .18s;
+    box-sizing: border-box;
+}
+.escmgr .search-inp:focus { border-color: var(--primary); }
+
+/* ── scrollable list box ────────────────────────── */
+.escmgr .list-box {
+    border: 1px solid var(--border-color); border-radius: 8px;
+    overflow-y: auto; background: var(--fg-color);
+}
+.escmgr .list-box.tall { max-height: 260px; min-height: 120px; }
+.escmgr .list-box.short { max-height: 200px; min-height: 80px; }
+
+/* ── student card ───────────────────────────────── */
+.escmgr .scard {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 13px; cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background .14s;
+}
+.escmgr .scard:last-child { border-bottom: none; }
+.escmgr .scard:hover:not(.disabled) { background: var(--subtle-fg); }
+.escmgr .scard.disabled { opacity: .42; cursor: default; }
+.escmgr .scard.picked { background: var(--green-highlight, #f0fdf4); }
+
+.escmgr .ava {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff; letter-spacing: .4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.18);
+}
+.escmgr .sinfo { flex: 1; min-width: 0; }
+.escmgr .sname {
+    font-size: 13px; font-weight: 500; color: var(--text-color);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.escmgr .sid { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+.escmgr .sbadge {
+    font-size: 11px; font-weight: 600; padding: 2px 9px;
+    border-radius: 20px; flex-shrink: 0; white-space: nowrap;
+}
+.escmgr .b-enrolled { background: #fef3c7; color: #92400e; }
+.escmgr .b-add      { background: #ede9fe; color: #6d28d9; }
+.escmgr .b-picked   { background: #dcfce7; color: #166534; }
+
+/* ── chips ──────────────────────────────────────── */
+.escmgr .chips { display: flex; flex-wrap: wrap; gap: 7px; min-height: 32px; }
+.escmgr .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px 3px 4px; border-radius: 20px;
+    background: #ede9fe; color: #6d28d9;
+    font-size: 12px; font-weight: 500;
+    animation: chipIn .14s ease;
+}
+.escmgr .chip-ava {
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; font-weight: 800; color: #fff; flex-shrink: 0;
+}
+.escmgr .chip-x {
+    width: 15px; height: 15px; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(109,40,217,.2); font-size: 10px; font-weight: 700;
+    line-height: 1; transition: background .14s;
+}
+.escmgr .chip-x:hover { background: rgba(109,40,217,.4); }
+
+@keyframes chipIn {
+    from { transform: scale(.8); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+}
+
+/* ── remove mode cards ──────────────────────────── */
+.escmgr .scard .rm-btn {
+    font-size: 11px; font-weight: 600; padding: 3px 10px;
+    border-radius: 6px; border: 1.5px solid var(--red-300, #fca5a5);
+    background: transparent; color: var(--red-500, #ef4444);
+    cursor: pointer; flex-shrink: 0; transition: background .14s, color .14s;
+}
+.escmgr .scard .rm-btn:hover { background: var(--red-500, #ef4444); color: #fff; }
+
+/* ── empty state ────────────────────────────────── */
+.escmgr .empty {
+    text-align: center; padding: 32px 16px;
+    color: var(--text-muted); font-size: 13px;
+}
+.escmgr .empty svg { margin-bottom: 8px; opacity: .4; }
+
+/* ── divider ────────────────────────────────────── */
+.escmgr hr { border: none; border-top: 1px solid var(--border-color); margin: 14px 0; }
+
+/* ── tab bar ────────────────────────────────────── */
+.escmgr .tab-bar {
+    display: flex; gap: 4px; margin-bottom: 16px;
+    border-bottom: 2px solid var(--border-color); padding-bottom: 0;
+}
+.escmgr .tab-btn {
+    padding: 7px 16px; font-size: 13px; font-weight: 600;
+    color: var(--text-muted); background: none; border: none;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; transition: color .15s, border-color .15s;
+}
+.escmgr .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+.escmgr .tab-pane { display: none; }
+.escmgr .tab-pane.active { display: block; }
+    `;
+    document.head.appendChild(s);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const _COLORS = ["#7C3AED","#2563EB","#059669","#DC2626","#D97706","#0891B2","#DB2777","#0D9488","#9333EA","#EA580C"];
+
+function _color(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffff;
+    return _COLORS[h % _COLORS.length];
+}
+
+function _initials(name) {
+    return (name || "?").split(" ").filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+}
+
+function _ava(name, size = 34) {
+    const c = _color(name), ini = _initials(name);
+    return `<div class="ava" style="width:${size}px;height:${size}px;background:${c}">${ini}</div>`;
+}
+
+function _scard_html(s, badge_html, extra = "") {
+    return `
+        <div class="scard ${extra}" data-id="${frappe.utils.escape_html(s.name)}"
+             data-name="${frappe.utils.escape_html(s.full_name || s.name)}">
+            ${_ava(s.full_name || s.name)}
+            <div class="sinfo">
+                <div class="sname">${frappe.utils.escape_html(s.full_name || s.name)}</div>
+                <div class="sid">${frappe.utils.escape_html(s.name)}</div>
+            </div>
+            ${badge_html}
+        </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Combined Add + Remove dialog (tabbed)
+// ---------------------------------------------------------------------------
+
+function manage_students_dialog(frm) {
+    _inject_styles();
+
+    const enrolled = new Set((frm.doc.students || []).map(s => s.student));
+    const selected = new Map(); // id → full_name
+
+    const d = new frappe.ui.Dialog({
+        title: `<span style="font-weight:700">${frm.doc.group_name}</span> · ${__("Gerir Alunos")}`,
+        size: "large",
+    });
+
+    // Remove default footer padding mess
+    d.$wrapper.find(".modal-footer").addClass("d-flex justify-content-between align-items-center");
+
+    d.$body.html(`
+        <div class="escmgr">
+            <div class="tab-bar">
+                <button class="tab-btn active" data-tab="add">➕ ${__("Adicionar")}</button>
+                <button class="tab-btn" data-tab="remove">➖ ${__("Remover")}</button>
+            </div>
+
+            <!-- ADD TAB -->
+            <div class="tab-pane active" id="tab-add">
+                <div class="search-wrap">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+                    </svg>
+                    <input class="search-inp" id="add-search"
+                        type="text" placeholder="${__("Pesquisar aluno por nome…")}">
+                </div>
+                <div class="section-title">${__("Resultados")}</div>
+                <div class="list-box tall" id="add-results">
+                    <div class="empty">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        <div>${__("Digite pelo menos 2 caracteres para pesquisar")}</div>
                     </div>
                 </div>
-                
-                ${max > 0 ? `
-                <div style="display: flex; flex-direction: column; width: 170px; background: ${capacity_bg}; padding: 14px; border-radius: 8px; border: 1px solid ${capacity_color}40;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: ${capacity_text}; margin-bottom: 10px;">
-                        <span>${count} / ${max} Alunos</span>
-                        <span>${percentage}%</span>
-                    </div>
-                    <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.05); border-radius: 4px; overflow: hidden;">
-                        <div style="height: 100%; width: ${percentage}%; background: ${capacity_color}; border-radius: 4px; transition: width 0.5s ease;"></div>
-                    </div>
+                <hr>
+                <div class="section-title">
+                    ${__("Seleccionados")} (<span id="sel-count">0</span>)
                 </div>
-                ` : `
-                <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 10px 20px; background: var(--bg-light-gray); border-radius: 8px;">
-                    <span style="font-size: 26px; font-weight: 800; color: var(--primary-color); line-height: 1;">${count}</span>
-                    <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-top:4px;">Alunos Activos</span>
+                <div class="chips" id="chips-wrap"></div>
+            </div>
+
+            <!-- REMOVE TAB -->
+            <div class="tab-pane" id="tab-remove">
+                <div class="search-wrap">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+                    </svg>
+                    <input class="search-inp" id="rm-search"
+                        type="text" placeholder="${__("Filtrar alunos da turma…")}">
                 </div>
-                `}
+                <div class="section-title">${__("Alunos na Turma")} (${enrolled.size})</div>
+                <div class="list-box tall" id="rm-list"></div>
             </div>
         </div>
-    `;
+    `);
 
-    $(frm.wrapper).find('.escola-modern-header').remove();
-    setTimeout(() => {
-        $(frm.fields_dict.section_break_identification.wrapper).before(html);
-    }, 100);
-}
+    // ── Tab switching ────────────────────────────────────────────────
+    d.$body.on("click", ".tab-btn", function () {
+        const tab = $(this).data("tab");
+        d.$body.find(".tab-btn").removeClass("active");
+        d.$body.find(".tab-pane").removeClass("active");
+        $(this).addClass("active");
+        d.$body.find(`#tab-${tab}`).addClass("active");
 
-function add_students_dialog(frm) {
-	const d = new frappe.ui.Dialog({
-		title: __("Adicionar Alunos à Turma: {0}", [frm.doc.group_name]),
-		size: "extra-large",
-		fields: [
-			{
-				fieldname: "selector_html",
-				fieldtype: "HTML"
-			}
-		],
-		primary_action_label: __("Atribuir Selecionados"),
-		primary_action() {
-			if (!d.selected_students || !d.selected_students.length) {
-				frappe.msgprint(__("Selecione pelo menos um aluno à direita."));
-				return;
-			}
-			const student_ids = d.selected_students.map(s => s.name);
-			frappe.call({
-				method: "escola.escola.doctype.class_group.class_group.add_students_to_group",
-				args: {
-					class_group_name: frm.doc.name,
-					students: JSON.stringify(student_ids),
-				},
-				freeze: true,
-				freeze_message: __("A atribuir alunos..."),
-				callback(r) {
-					if (r.exc) return;
-					d.hide();
-					const { created, skipped, errors } = r.message;
-					if (errors && errors.length) {
-						let items = errors.map(e => `<li><b>${e.student}</b>: ${e.error}</li>`).join("");
-						frappe.msgprint({ title: __("Erros na atribuição"), message: `<ul>${items}</ul>`, indicator: "orange" });
-					}
-					let parts = [];
-					if (created > 0) parts.push(__("{0} aluno(s) atribuído(s)", [created]));
-					if (skipped > 0) parts.push(__("{0} ignorado(s)", [skipped]));
-					if (parts.length) frappe.show_alert({ message: parts.join(" · "), indicator: created > 0 ? "green" : "blue" });
-					frm.reload_doc();
-				}
-			});
-		}
-	});
+        if (tab === "add") {
+            d.set_primary_action(__("Atribuir"), () => submit_add());
+            _update_add_btn();
+        } else {
+            d.set_primary_action(__("Fechar"), () => d.hide());
+            _render_remove_list("");
+        }
+    });
 
-	d.available_students = [];
-	d.selected_students = [];
+    // ── ADD tab ──────────────────────────────────────────────────────
+    let _search_timer;
 
-	const html = `
-		<style>
-			.student-selector-split { display: flex; gap: 20px; height: 55vh; min-height: 450px; padding: 10px 0; }
-			.student-pane { flex: 1; display: flex; flex-direction: column; background: var(--bg-light-gray); border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; }
-			.student-pane-header { padding: 12px 15px; border-bottom: 1px solid var(--border-color); background: var(--fg-color); display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 14px; }
-			.student-search { width: 100%; border: none; border-bottom: 1px solid var(--border-color); padding: 12px 15px; background: transparent; outline: none; font-size: 13px; color: var(--text-color); }
-			.student-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-			.student-card { display: flex; align-items: center; padding: 10px 14px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-			.student-card:hover { border-color: var(--primary-color); transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.06); }
-			.student-card .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--primary-color); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; margin-right: 14px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-			.student-info { flex: 1; min-width: 0; }
-			.student-info .name { font-weight: 600; font-size: 13px; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-			.student-info .code { font-size: 11px; color: var(--text-muted); margin-top:2px; }
-			.action-icon { opacity: 0; font-size: 18px; margin-left: 10px; transition: 0.2s ease; color: var(--text-muted); }
-			.student-card:hover .action-icon { opacity: 1; color: var(--primary-color); transform: scale(1.1); }
-			.student-list-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-			.student-list-empty svg { width: 40px; height: 40px; opacity: 0.5; }
-		</style>
-		<div class="student-selector-split">
-			<div class="student-pane">
-				<div class="student-pane-header">
-					<span>🎓 Alunos Disponíveis</span>
-					<span class="badge badge-default" id="count-avail">0</span>
-				</div>
-				<input type="text" class="student-search" id="search-avail" placeholder="🔍 Pesquisar por nome ou código..." autocomplete="off" />
-				<div class="student-list" id="list-avail">
-					<div class="student-list-empty">A carregar banco de alunos...</div>
-				</div>
-			</div>
-			
-			<div class="student-pane" style="background: var(--bg-color);">
-				<div class="student-pane-header" style="background: var(--bg-light-gray);">
-					<span>✅ Selecionados para Adicionar</span>
-					<span class="badge badge-success" id="count-sel">0</span>
-				</div>
-				<div class="student-list" id="list-sel">
-					<div class="student-list-empty">
-						<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-						Nenhum aluno selecionado. <br>Clique num aluno à esquerda para adicionar na cesta.
-					</div>
-				</div>
-			</div>
-		</div>
-	`;
+    d.$body.find("#add-search").on("input", function () {
+        clearTimeout(_search_timer);
+        const q = this.value.trim();
+        if (q.length < 2) {
+            $("#add-results").html(`<div class="empty"><div>${__("Digite pelo menos 2 caracteres")}</div></div>`);
+            return;
+        }
+        _search_timer = setTimeout(() => _do_search(q), 300);
+    });
 
-	requestAnimationFrame(() => {
-		const wrapper = d.fields_dict.selector_html.$wrapper;
-		wrapper.html(html);
+    async function _do_search(q) {
+        d.$body.find("#add-results").html(`<div class="empty">${__("A pesquisar…")}</div>`);
+        const r = await frappe.call({
+            method: "frappe.client.get_list",
+            args: {
+                doctype: "Student",
+                filters: [["current_status", "=", "Activo"], ["full_name", "like", `%${q}%`]],
+                fields: ["name", "full_name"],
+                limit_page_length: 25,
+            },
+        });
+        _render_add_results(r.message || []);
+    }
 
-		frappe.call({
-			method: "escola.escola.doctype.class_group.class_group.get_available_students_for_group",
-			args: { class_group_name: frm.doc.name },
-			callback(r) {
-				if (r.message) {
-					d.available_students = r.message;
-					render_lists();
-				}
-			}
-		});
+    function _render_add_results(students) {
+        const $box = d.$body.find("#add-results").empty();
+        if (!students.length) {
+            $box.html(`<div class="empty"><div>${__("Nenhum aluno encontrado")}</div></div>`);
+            return;
+        }
+        students.forEach(s => {
+            const isEnrolled = enrolled.has(s.name);
+            const isPicked = selected.has(s.name);
+            const badge = isEnrolled
+                ? `<span class="sbadge b-enrolled">${__("Já na turma")}</span>`
+                : isPicked
+                    ? `<span class="sbadge b-picked">✓ ${__("Seleccionado")}</span>`
+                    : `<span class="sbadge b-add">+ ${__("Adicionar")}</span>`;
+            const extra = isEnrolled ? "disabled" : isPicked ? "picked" : "";
+            const $card = $(_scard_html(s, badge, extra));
+            if (!isEnrolled) $card.on("click", () => _toggle(s.name, s.full_name || s.name));
+            $box.append($card);
+        });
+    }
 
-		wrapper.find("#search-avail").on("input", function() {
-			const q = $(this).val().toLowerCase();
-			render_list("avail", d.available_students, q, "Nenhum aluno correspondente encontrado.");
-		});
+    function _toggle(id, name) {
+        if (selected.has(id)) {
+            selected.delete(id);
+            d.$body.find(`#chips-wrap [data-id="${id}"]`).remove();
+        } else {
+            selected.set(id, name);
+            const color = _color(name), ini = _initials(name);
+            const $chip = $(`
+                <div class="chip" data-id="${frappe.utils.escape_html(id)}">
+                    <div class="chip-ava" style="background:${color}">${ini}</div>
+                    <span>${frappe.utils.escape_html(name)}</span>
+                    <div class="chip-x" title="${__("Remover")}">✕</div>
+                </div>
+            `);
+            $chip.find(".chip-x").on("click", () => _toggle(id, name));
+            d.$body.find("#chips-wrap").append($chip);
+        }
+        // Refresh card badge in results
+        const $card = d.$body.find(`#add-results [data-id="${CSS.escape(id)}"]`);
+        if (selected.has(id)) {
+            $card.addClass("picked");
+            $card.find(".sbadge").attr("class", "sbadge b-picked").text(`✓ ${__("Seleccionado")}`);
+        } else {
+            $card.removeClass("picked");
+            $card.find(".sbadge").attr("class", "sbadge b-add").text(`+ ${__("Adicionar")}`);
+        }
+        _update_add_btn();
+    }
 
-		function get_initials(name) {
-			const p = (name || "").split(" ");
-			if (p.length === 1) return p[0].substring(0, 2).toUpperCase();
-			return (p[0].charAt(0) + p[p.length - 1].charAt(0)).toUpperCase();
-		}
+    function _update_add_btn() {
+        const n = selected.size;
+        d.$body.find("#sel-count").text(n);
+        d.get_primary_btn()
+            .prop("disabled", n === 0)
+            .text(n > 0 ? __("Atribuir {0} aluno(s)", [n]) : __("Atribuir"));
+    }
 
-		function render_lists() {
-			const q = wrapper.find("#search-avail").val().toLowerCase();
-			render_list("avail", d.available_students, q, "Todos os alunos activos já foram adicionados a esta turma ou não existem mais alunos.");
-			render_list("sel", d.selected_students, "", "O cesto está vazio. Clique num aluno à esquerda para adicionar.");
-			
-			wrapper.find("#count-avail").text(d.available_students.length);
-			wrapper.find("#count-sel").text(d.selected_students.length);
-		}
+    function submit_add() {
+        const students = [...selected.keys()];
+        if (!students.length) return;
+        frappe.call({
+            method: "escola.escola.doctype.class_group.class_group.add_students_to_group",
+            args: { class_group_name: frm.doc.name, students: JSON.stringify(students) },
+            freeze: true, freeze_message: __("A atribuir alunos…"),
+            callback(r) {
+                if (r.exc) return;
+                d.hide();
+                const { created, skipped, errors } = r.message;
+                if (errors && errors.length) {
+                    frappe.msgprint({
+                        title: __("Alguns alunos não foram atribuídos"),
+                        message: `<ul>${errors.map(e => `<li><b>${e.student}</b>: ${e.error}</li>`).join("")}</ul>`,
+                        indicator: "orange",
+                    });
+                }
+                const parts = [];
+                if (created > 0) parts.push(__("{0} atribuído(s)", [created]));
+                if (skipped > 0) parts.push(__("{0} já estava(m)", [skipped]));
+                if (parts.length) frappe.show_alert({ message: parts.join(" · "), indicator: created > 0 ? "green" : "blue" });
+                frm.reload_doc();
+            },
+        });
+    }
 
-		function render_list(type, data, query, empty_msg) {
-			const $container = wrapper.find(`#list-${type}`);
-			$container.empty();
-			
-			const filtered = query ? data.filter(s => s.full_name.toLowerCase().includes(query) || (s.student_code && s.student_code.toLowerCase().includes(query))) : data;
+    // ── REMOVE tab ───────────────────────────────────────────────────
+    const _roster = (frm.doc.students || []).map(s => ({
+        name: s.student,
+        full_name: s.student_name || s.student,
+    }));
 
-			if (!filtered.length) {
-				$container.html(`<div class="student-list-empty">${empty_msg}</div>`);
-				return;
-			}
+    function _render_remove_list(filter) {
+        const $box = d.$body.find("#rm-list").empty();
+        const q = filter.toLowerCase();
+        const list = q ? _roster.filter(s => (s.full_name || s.name).toLowerCase().includes(q)) : _roster;
+        if (!list.length) {
+            $box.html(`<div class="empty"><div>${q ? __("Nenhum resultado") : __("Turma sem alunos")}</div></div>`);
+            return;
+        }
+        list.forEach(s => {
+            const $card = $(_scard_html(s, `<button class="rm-btn">${__("Remover")}</button>`));
+            $card.find(".rm-btn").on("click", (e) => {
+                e.stopPropagation();
+                _confirm_remove(s.name, s.full_name || s.name);
+            });
+            $box.append($card);
+        });
+    }
 
-			// Add a subtle slide-in delay
-			let delay = 0;
-			filtered.forEach((s) => {
-				const icon = type === "avail" ? "➜" : "✕";
-				const $card = $(`
-					<div class="student-card" data-id="${s.name}" style="animation: slideIn 0.2s ease ${delay}s both;">
-						<div class="avatar">${get_initials(s.full_name)}</div>
-						<div class="student-info">
-							<div class="name">${s.full_name}</div>
-							<div class="code">${s.student_code || s.name}</div>
-						</div>
-						<div class="action-icon" style="${type === 'sel' ? 'color: var(--error-color); opacity: 0.8;' : ''}">${icon}</div>
-					</div>
-				`);
-				
-				delay += 0.02; // Stagger effect
+    function _confirm_remove(id, name) {
+        frappe.confirm(
+            __("Remover <b>{0}</b> desta turma?", [name]),
+            () => {
+                frappe.call({
+                    method: "escola.escola.doctype.class_group.class_group.remove_student_from_group",
+                    args: { class_group_name: frm.doc.name, student: id },
+                    callback(r) {
+                        if (r.exc) return;
+                        frappe.show_alert({ message: __("Aluno removido da turma."), indicator: "green" });
+                        // Remove from local roster and re-render
+                        const idx = _roster.findIndex(s => s.name === id);
+                        if (idx !== -1) _roster.splice(idx, 1);
+                        enrolled.delete(id);
+                        _render_remove_list(d.$body.find("#rm-search").val() || "");
+                        frm.reload_doc();
+                    },
+                });
+            }
+        );
+    }
 
-				$card.on("click", () => {
-					if (type === "avail") {
-						d.available_students = d.available_students.filter(x => x.name !== s.name);
-						d.selected_students.push(s);
-					} else {
-						d.selected_students = d.selected_students.filter(x => x.name !== s.name);
-						d.available_students.push(s);
-						d.available_students.sort((a,b) => a.full_name.localeCompare(b.full_name));
-					}
-					render_lists();
-				});
+    d.$body.on("input", "#rm-search", function () {
+        _render_remove_list(this.value.trim());
+    });
 
-				$container.append($card);
-			});
-		}
-		
-		// Keyframes inside wrapper just in case 
-		if (!document.getElementById("student-anim")) {
-		    $("head").append(`<style id="student-anim">@keyframes slideIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }</style>`);
-		}
-	});
+    // ── Init ─────────────────────────────────────────────────────────
+    d.set_primary_action(__("Atribuir"), () => submit_add());
+    _update_add_btn();
 
-	d.show();
-}
-
-function remove_student_dialog(frm) {
-	const roster = frm.doc.students || [];
-	if (!roster.length) {
-		frappe.msgprint(__("Não há alunos nesta turma."));
-		return;
-	}
-
-	const d = new frappe.ui.Dialog({
-		title: __("Remover Aluno da Turma"),
-		fields: [
-			{
-				fieldname: "student",
-				fieldtype: "Link",
-				options: "Student",
-				label: __("Aluno"),
-				reqd: 1,
-				description: __("Apenas alunos actualmente nesta turma são apresentados."),
-				get_query: () => ({
-					filters: {
-						name: ["in", roster.map((r) => r.student)],
-					},
-				}),
-			},
-		],
-		primary_action_label: __("Remover da Turma"),
-		primary_action(values) {
-			frappe.confirm(
-				__("Confirma a remoção de <b>{0}</b> desta turma? O registo de alocação ficará marcado como Encerrado.", [values.student]),
-				() => {
-					frappe.call({
-						method: "escola.escola.doctype.class_group.class_group.remove_student_from_group",
-						args: {
-							class_group_name: frm.doc.name,
-							student: values.student,
-						},
-						callback(r) {
-							if (r.exc) return;
-							d.hide();
-							frappe.show_alert({
-								message: __("Aluno removido da turma."),
-								indicator: "green",
-							});
-							frm.reload_doc();
-						},
-					});
-				}
-			);
-		},
-	});
-
-	d.show();
+    d.show();
+    setTimeout(() => d.$body.find("#add-search").focus(), 120);
 }
 
 // ---------------------------------------------------------------------------
@@ -368,24 +485,23 @@ function remove_student_dialog(frm) {
 // ---------------------------------------------------------------------------
 
 function rebuild_roster(frm) {
-	frappe.confirm(
-		__("Isto irá reconstruir a lista de alunos a partir das Alocações de Turma activas. Continuar?"),
-		() => {
-			frappe.call({
-				method: "escola.escola.doctype.class_group.class_group.rebuild_roster",
-				args: { class_group_name: frm.doc.name },
-				freeze: true,
-				freeze_message: __("A reconstruir a pauta…"),
-				callback(r) {
-					if (r.message !== undefined) {
-						frappe.show_alert({
-							message: __("Pauta reconstruída com {0} aluno(s).", [r.message]),
-							indicator: "green",
-						});
-						frm.reload_doc();
-					}
-				},
-			});
-		}
-	);
+    frappe.confirm(
+        __("Isto irá reconstruir a lista de alunos a partir das Alocações de Turma activas. Continuar?"),
+        () => {
+            frappe.call({
+                method: "escola.escola.doctype.class_group.class_group.rebuild_roster",
+                args: { class_group_name: frm.doc.name },
+                freeze: true, freeze_message: __("A reconstruir a pauta…"),
+                callback(r) {
+                    if (r.message !== undefined) {
+                        frappe.show_alert({
+                            message: __("Pauta reconstruída com {0} aluno(s).", [r.message]),
+                            indicator: "green",
+                        });
+                        frm.reload_doc();
+                    }
+                },
+            });
+        }
+    );
 }

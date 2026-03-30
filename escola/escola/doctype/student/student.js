@@ -20,7 +20,6 @@ frappe.ui.form.on("Student", {
         if (!frm.is_new()) {
             const current_status = frm.doc.current_status;
 
-            _render_modern_header(frm);
             _set_financial_indicator(frm);
             _load_financial_summary(frm);
 
@@ -69,8 +68,9 @@ frappe.ui.form.on("Student", {
         }
     },
 
-    first_name(frm) { update_full_name(frm); },
-    last_name(frm)  { update_full_name(frm); },
+    first_name(frm)    { update_full_name(frm); },
+    last_name(frm)     { update_full_name(frm); },
+    date_of_birth(frm) { update_age(frm); },
 });
 
 // ---------------------------------------------------------------------------
@@ -99,92 +99,41 @@ function _load_financial_summary(frm) {
             const color = _FINANCIAL_COLORS[d.financial_status] || "gray";
             const alert_text = __(_ALERT_MESSAGES[d.alert_level] || "");
 
-            const html_parts = [
+            const parts = [
                 `<b style="color:var(--${color}-600)">${alert_text}</b>`,
-                __("Em dívida: <b>{0}</b>", [format_currency(d.total_outstanding)]),
+                __("Em dívida: {0}", [format_currency(d.total_outstanding)]),
             ];
 
             if (d.penalty_rate > 0) {
-                html_parts.push(__("Multa: {0}% = {1}", [d.penalty_rate, format_currency(d.penalty_amount)]));
+                parts.push(__("Multa: {0}% = {1}", [d.penalty_rate, format_currency(d.penalty_amount)]));
             }
             if (d.days_overdue > 0) {
-                html_parts.push(__("{0} dias em atraso", [d.days_overdue]));
+                parts.push(__("{0} dias em atraso ({1} período(s))", [d.days_overdue, d.periods]));
             }
             if (d.total_with_penalty > d.total_outstanding) {
-                html_parts.push(__("Total com multa: <b>{0}</b>", [format_currency(d.total_with_penalty)]));
+                parts.push(__("Total com multa: {0}", [format_currency(d.total_with_penalty)]));
             }
 
-            const header_alert = `
-                <div style="background: var(--red-50, #FCEEEB); border-left: 4px solid var(--red-500); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13px; color: var(--red-900); display: flex; align-items: center; gap: 15px; margin-top: 5px;">
-                    ${html_parts.join(` <span style="color: var(--red-300);">|</span> `)}
-                </div>
-            `;
-            
-            $(frm.wrapper).find("#student-financial-alert-container").html(header_alert);
-            frm.dashboard.set_headline(html_parts.join(" &nbsp;|&nbsp; "));
+            frm.dashboard.set_headline(parts.join(" &nbsp;|&nbsp; "));
         },
     });
-}
-
-function _render_modern_header(frm) {
-    if (frm.is_new()) return;
-    
-    function get_initials(name) {
-        const p = (name || "").split(" ");
-        if (p.length === 1) return p[0].substring(0, 2).toUpperCase();
-        return (p[0].charAt(0) + p[p.length - 1].charAt(0)).toUpperCase();
-    }
-
-    const initials = get_initials(frm.doc.full_name);
-    
-    const status = frm.doc.financial_status || "Regular";
-    let color = "var(--text-color)", bg = "transparent";
-    if (status === "Regular") { color = "var(--green-700)"; bg = "var(--green-100, #D1F0DB)"; }
-    else if (status === "Em Dívida") { color = "var(--yellow-700)"; bg = "var(--yellow-100, #FFEDBF)"; }
-    else if (status === "Em Dívida Crítica" || status === "Suspenso") { color = "var(--red-700)"; bg = "var(--red-100, #FBD5CD)"; }
-
-    let enrol_status_color = frm.doc.current_status === "Activo" ? "var(--green-600)" : "var(--text-muted)";
-
-    const html = `
-        <div class="escola-modern-header" style="display: flex; align-items: flex-start; padding: 20px 24px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); gap: 20px;">
-            <div style="width: 72px; height: 72px; border-radius: 50%; background: var(--primary-color, #2490ef); color: white; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; flex-shrink: 0; box-shadow: 0 4px 12px rgba(36, 144, 239, 0.3);">
-                ${initials}
-            </div>
-            <div style="display: flex; flex-direction: column; flex: 1; padding-top: 4px;">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <h2 style="margin: 0; font-weight: 700; color: var(--text-color); font-size: 22px; letter-spacing: -0.5px;">${frm.doc.full_name}</h2>
-                    <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; background: ${bg}; color: ${color}; text-transform: uppercase; letter-spacing: 0.5px;">
-                        ${__(status)}
-                    </span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 18px; margin-top: 10px; font-size: 13px; color: var(--text-muted);">
-                    <span style="display:flex; align-items:center; gap:6px;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                        ${frm.doc.student_code || "Sem Código"}
-                    </span>
-                    <span style="display:flex; align-items:center; gap:6px; color:${enrol_status_color}; font-weight:600;">
-                        <span style="width: 8px; height: 8px; border-radius: 50%; background: ${enrol_status_color}; display: inline-block;"></span>
-                        ${__(frm.doc.current_status)}
-                    </span>
-                    <span style="display:flex; align-items:center; gap:6px;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
-                        ${frm.doc.current_class_group || "Sem Turma Atribuída"}
-                    </span>
-                </div>
-                <div id="student-financial-alert-container" style="margin-top: 14px;"></div>
-            </div>
-        </div>
-    `;
-
-    $(frm.wrapper).find('.escola-modern-header').remove();
-    setTimeout(() => {
-        $(frm.fields_dict.section_break_personal.wrapper).before(html);
-    }, 100);
 }
 
 // ---------------------------------------------------------------------------
 // Full name sync
 // ---------------------------------------------------------------------------
+
+function update_age(frm) {
+    if (!frm.doc.date_of_birth) return;
+    const dob = frappe.datetime.str_to_obj(frm.doc.date_of_birth);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    if (
+        today.getMonth() < dob.getMonth() ||
+        (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())
+    ) age--;
+    frm.set_value("idade", age >= 0 ? age : null);
+}
 
 function update_full_name(frm) {
     const parts = [frm.doc.first_name, frm.doc.last_name].filter(Boolean);

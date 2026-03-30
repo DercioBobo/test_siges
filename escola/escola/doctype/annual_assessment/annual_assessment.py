@@ -1,26 +1,24 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from escola.escola.doctype.term_attendance.term_attendance import get_annual_absences
 
 
 @frappe.whitelist()
 def calculate_assessment(doc_name):
     """
-    Compute final grades for all students in a class group using trimester averages.
+    Compute final grades for all students in a class group.
 
     Algorithm:
-    1. Fetch all Academic Terms for the year, ordered by term_start_date — this
-       gives us the T1/T2/T3 positional mapping without relying on a term_number field.
-    2. Collect all Grade Entry rows for (academic_year, class_group), keyed by
-       (student, subject, term_position).  Multiple Grade Entries in the same term
-       (e.g. two pautas) are averaged together.
-    3. Per student+subject: populate term_1/2/3_average from whichever terms have data,
-       then compute final_grade as the simple average of the present term averages.
-    4. Compare against School Class minimum_passing_grade (or School Settings fallback).
+    1. Fetch Academic Terms for the year ordered by start date → positional mapping T1/T2/T3.
+    2. For each Grade Entry (class_group, academic_year), collect rows with valid scores.
+       Multiple Grade Entries in the same term (e.g. Teste 1 + Teste 2) are averaged.
+    3. Per (student, subject): term_N_average = average of all scores in that term.
+       final_grade = simple average of available term averages.
+    4. Compare against School Class minimum_passing_grade.
     """
     doc = frappe.get_doc("Annual Assessment", doc_name)
 
-    # --- ordered term positions: T1, T2, T3 … ----------------------------
     terms = frappe.get_all(
         "Academic Term",
         filters={"academic_year": doc.academic_year},
@@ -30,85 +28,94 @@ def calculate_assessment(doc_name):
     if not terms:
         return {"error": "no_terms"}
 
-    term_position = {t.name: idx + 1 for idx, t in enumerate(terms)}  # 1-based
+    term_position = {t.name: idx + 1 for idx, t in enumerate(terms)}
 
-    # --- minimum passing grade -------------------------------------------
     min_passing = float(
         frappe.db.get_value("School Class", doc.school_class, "minimum_passing_grade")
         or frappe.db.get_single_value("School Settings", "minimum_passing_grade")
         or 10
     )
 
-    # --- collect Grade Entry documents for this class group ---------------
     grade_entries = frappe.get_all(
         "Grade Entry",
         filters={
-            "academic_year": doc.academic_year,
             "class_group": doc.class_group,
-            "docstatus": ("!=", 2),  # exclude cancelled
+            "academic_year": doc.academic_year,
+            "docstatus": ("!=", 2),
         },
         fields=["name", "academic_term"],
     )
     if not grade_entries:
         return {"error": "no_grade_entries"}
 
-    # data[student][subject][term_pos] = [trimester_average, …]
+    # data[student][subject][term_pos] = [score, ...]
     data: dict = {}
     for entry in grade_entries:
         pos = term_position.get(entry.academic_term)
         if pos is None:
-            continue  # term doesn't belong to the year — skip
+            continue
         rows = frappe.get_all(
             "Grade Entry Row",
             filters={"parent": entry.name, "is_absent": 0},
-            fields=["student", "subject", "trimester_average"],
+            fields=["student", "subject", "score"],
         )
         for row in rows:
-            if row.trimester_average is None:
+            if row.score is None:
                 continue
             (
                 data
                 .setdefault(row.student, {})
                 .setdefault(row.subject, {})
                 .setdefault(pos, [])
-                .append(float(row.trimester_average))
+                .append(float(row.score))
             )
 
     if not data:
         return {"error": "no_grades"}
 
-    # --- build result rows -----------------------------------------------
+    # --- absences per student across all terms ----------------------------
+    absences = get_annual_absences(doc.class_group, doc.academic_year)
+    abs_threshold = int(
+        frappe.db.get_single_value("School Settings", "max_absences_threshold") or 0
+    )
+
     result_rows = []
     max_terms = len(terms)
 
     for student in sorted(data):
-        for subject in sorted(data[student]):
-            term_avgs = {}  # {pos: average}
-            for pos, values in data[student][subject].items():
-                term_avgs[pos] = round(sum(values) / len(values), 2)
+        student_abs = absences.get(student, {})
+        total_abs = student_abs.get("total", 0)
+        abs_at_risk = 1 if (abs_threshold > 0 and total_abs >= abs_threshold) else 0
 
-            # fill T1/T2/T3 slots (up to 3 for the UI columns)
+        for subject in sorted(data[student]):
+            term_avgs = {
+                pos: round(sum(vals) / len(vals), 2)
+                for pos, vals in data[student][subject].items()
+            }
+
             t1 = term_avgs.get(1)
             t2 = term_avgs.get(2) if max_terms >= 2 else None
             t3 = term_avgs.get(3) if max_terms >= 3 else None
 
-            present = [v for v in term_avgs.values()]
+            present = list(term_avgs.values())
             final_grade = round(sum(present) / len(present), 2) if present else 0.0
 
-            result = "Aprovado" if final_grade >= min_passing else "Reprovado"
+            # System suggestion: grade-based only; absences are a flag, not a hard fail
+            suggested = "Aprovado" if final_grade >= min_passing else "Reprovado"
 
-            result_rows.append(
-                {
-                    "student": student,
-                    "subject": subject,
-                    "term_1_average": t1,
-                    "term_2_average": t2,
-                    "term_3_average": t3,
-                    "final_grade": final_grade,
-                    "result": result,
-                    "remarks": "",
-                }
-            )
+            result_rows.append({
+                "student": student,
+                "subject": subject,
+                "term_1_average": t1,
+                "term_2_average": t2,
+                "term_3_average": t3,
+                "final_grade": final_grade,
+                "total_absences": total_abs,
+                "absences_at_risk": abs_at_risk,
+                "suggested_result": suggested,
+                "result": suggested,   # pre-fill with suggestion; teacher can override
+                "remarks": "",
+            })
 
     return result_rows
 
@@ -192,3 +199,13 @@ class AnnualAssessment(Document):
                     title=_("Linha duplicada"),
                 )
             seen.add(key)
+            # Warn if teacher result differs from suggestion (informational only)
+            if row.result and row.suggested_result and row.result != row.suggested_result:
+                frappe.msgprint(
+                    _("Aluno <b>{0}</b> / <b>{1}</b>: resultado alterado pelo professor "
+                      "(<b>{2}</b> → <b>{3}</b>).").format(
+                        row.student, row.subject, row.suggested_result, row.result
+                    ),
+                    alert=True,
+                    indicator="orange",
+                )
