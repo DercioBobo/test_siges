@@ -71,11 +71,12 @@ function _inject_score_inputs(frm, cdt, cdn) {
 
 	const disabled = row.is_absent ? "disabled" : "";
 
-	let html = `<div class="escola-score-panel" style="margin:8px 0 4px;">
-		<label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">
+	let html = `<div class="escola-score-panel" style="margin: 12px 0 8px; padding: 16px; background: var(--bg-light-gray); border: 1px solid var(--border-color); border-radius: 8px;">
+		<label style="font-size:12px; font-weight:700; color:var(--text-color); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
 			${__("Notas por Componente")}
 		</label>
-		<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">`;
+		<div style="display:flex; flex-wrap:wrap; gap:12px;">`;
 
 	for (const comp of components) {
 		const val = scores[comp.component_name] !== undefined
@@ -83,25 +84,30 @@ function _inject_score_inputs(frm, cdt, cdn) {
 			: "";
 		const maxS = comp.max_score || 20;
 		html += `
-			<div style="display:flex;flex-direction:column;min-width:110px;">
-				<span style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">
+			<div style="display:flex; flex-direction:column; min-width:130px; background: var(--card-bg); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+				<span style="font-size:11px; font-weight:600; color:var(--text-color); margin-bottom:4px; display:flex; justify-content:space-between;">
 					${frappe.utils.escape_html(comp.component_name)}
-					<span style="opacity:.6;">(${comp.weight || 0}% / ${maxS})</span>
+					<span style="opacity:0.6; font-weight:400; font-size:10px;">${comp.weight || 0}%</span>
 				</span>
-				<input
-					type="number" min="0" max="${maxS}" step="0.01"
-					${disabled}
-					data-component="${frappe.utils.escape_html(comp.component_name)}"
-					value="${val}"
-					style="width:100%;padding:3px 6px;border:1px solid var(--border-color);border-radius:4px;font-size:13px;"
-				/>
+                <div style="display:flex; align-items:center;">
+				    <input
+					    type="number" min="0" max="${maxS}" step="0.01"
+					    ${disabled}
+					    data-component="${frappe.utils.escape_html(comp.component_name)}"
+					    value="${val}"
+					    style="width:100%; padding:6px 8px; border:1px solid var(--border-color); border-radius:4px; font-size:14px; outline:none; transition: border 0.2s;"
+                        onfocus="this.style.borderColor='var(--primary-color)'"
+                        onblur="this.style.borderColor='var(--border-color)'"
+				    />
+                    <span style="font-size:12px; color:var(--text-muted); margin-left:6px; font-weight: 500;">/ ${maxS}</span>
+                </div>
 			</div>`;
 	}
 
 	html += `</div>
-		<div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
-			<b>${__("Média calculada")}:</b>
-			<span class="escola-avg-display">${
+		<div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+			<span style="font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">${__("Média Calculada")}</span>
+			<span class="escola-avg-display" style="font-size: 16px; font-weight: 700; color: var(--primary-color); background: rgba(36,144,239,0.1); padding: 4px 12px; border-radius: 12px;">${
 				row.trimester_average !== null && row.trimester_average !== undefined
 					? row.trimester_average
 					: "—"

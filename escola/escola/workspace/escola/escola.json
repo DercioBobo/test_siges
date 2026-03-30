@@ -75,16 +75,39 @@
  "sequence_id": 1,
  "shortcuts": [
   {
-   "color": "#8B5CF6",
-   "doc_type": "School Settings",
-   "label": "Configurações da Escola",
-   "type": "DocType"
+   "color": "Green",
+   "doc_view": "List",
+   "link_to": "Student",
+   "type": "DocType",
+   "label": "Alunos"
   },
   {
-   "color": "#0EA5E9",
-   "doc_type": "Academic Term",
-   "label": "Períodos Académicos",
-   "type": "DocType"
+   "color": "Blue",
+   "doc_view": "List",
+   "link_to": "Class Group",
+   "type": "DocType",
+   "label": "Turmas"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "link_to": "Grade Entry",
+   "type": "DocType",
+   "label": "Pautas de Notas"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "List",
+   "link_to": "Student Attendance",
+   "type": "DocType",
+   "label": "Presenças"
+  },
+  {
+   "color": "Red",
+   "doc_view": "List",
+   "link_to": "Inscricao",
+   "type": "DocType",
+   "label": "Nova Inscrição"
   }
  ],
  "title": "Escola"

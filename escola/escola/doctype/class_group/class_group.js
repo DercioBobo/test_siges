@@ -51,26 +51,85 @@ frappe.ui.form.on("Class Group", {
 			);
 		}
 
-		// Capacity indicator
-		const count = frm.doc.student_count || 0;
-		const max = frm.doc.max_students || 0;
-		if (max > 0 && count >= max) {
-			frm.dashboard.set_headline_alert(
-				__("Turma com capacidade esgotada ({0}/{1} alunos)", [count, max]),
-				"red"
-			);
-		} else if (max > 0) {
-			frm.dashboard.set_headline_alert(
-				__("{0}/{1} alunos", [count, max]),
-				count / max >= 0.9 ? "orange" : "green"
-			);
-		}
+		_render_modern_header(frm);
 	},
 });
 
 // ---------------------------------------------------------------------------
 // Student management dialogs
 // ---------------------------------------------------------------------------
+
+function _render_modern_header(frm) {
+    if (frm.is_new()) return;
+    
+    const count = frm.doc.student_count || 0;
+    const max = frm.doc.max_students || 0;
+    
+    let capacity_color = "var(--green-500)";
+    let capacity_bg = "var(--green-50, #E6F6ED)";
+    let capacity_text = "var(--green-700)";
+    let percentage = 0;
+    
+    if (max > 0) {
+        percentage = Math.min(Math.round((count / max) * 100), 100);
+        if (percentage >= 100) { capacity_color = "var(--red-500)"; capacity_bg = "var(--red-50, #FCEEEB)"; capacity_text = "var(--red-700)"; }
+        else if (percentage >= 90) { capacity_color = "var(--orange-500)"; capacity_bg = "var(--orange-50, #FFF5E6)"; capacity_text = "var(--orange-700)"; }
+    }
+    
+    const active_badge = frm.doc.is_active ? 
+        `<span style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: var(--green-100, #D1F0DB); color: var(--green-700); text-transform: uppercase;">Turma Activa</span>` : 
+        `<span style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: var(--gray-200); color: var(--text-muted); text-transform: uppercase;">Encerrada</span>`;
+
+    const html = `
+        <div class="escola-modern-header" style="padding: 20px 24px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <h2 style="margin: 0; font-weight: 700; color: var(--text-color); font-size: 24px; letter-spacing: -0.5px;">${frm.doc.group_name}</h2>
+                        ${active_badge}
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 16px; margin-top: 4px;">
+                        <span style="display:flex; align-items:center; gap:6px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                            ${frm.doc.academic_year || "Sem Ano Lectivo"}
+                        </span>
+                        <span style="display:flex; align-items:center; gap:6px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                            ${frm.doc.school_class || "Sem Classe"}
+                        </span>
+                        <span style="display:flex; align-items:center; gap:6px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            Prof: <b style="color: var(--text-color);">${frm.doc.class_teacher || "Não Atribuído"}</b>
+                        </span>
+                        ${frm.doc.teaching_model ? `<span style="padding: 2px 8px; background: var(--bg-light-gray); border-radius: 4px; font-size: 11px; font-weight: 600;">${frm.doc.teaching_model}</span>` : ""}
+                    </div>
+                </div>
+                
+                ${max > 0 ? `
+                <div style="display: flex; flex-direction: column; width: 170px; background: ${capacity_bg}; padding: 14px; border-radius: 8px; border: 1px solid ${capacity_color}40;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: ${capacity_text}; margin-bottom: 10px;">
+                        <span>${count} / ${max} Alunos</span>
+                        <span>${percentage}%</span>
+                    </div>
+                    <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.05); border-radius: 4px; overflow: hidden;">
+                        <div style="height: 100%; width: ${percentage}%; background: ${capacity_color}; border-radius: 4px; transition: width 0.5s ease;"></div>
+                    </div>
+                </div>
+                ` : `
+                <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 10px 20px; background: var(--bg-light-gray); border-radius: 8px;">
+                    <span style="font-size: 26px; font-weight: 800; color: var(--primary-color); line-height: 1;">${count}</span>
+                    <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-top:4px;">Alunos Activos</span>
+                </div>
+                `}
+            </div>
+        </div>
+    `;
+
+    $(frm.wrapper).find('.escola-modern-header').remove();
+    setTimeout(() => {
+        $(frm.fields_dict.section_break_identification.wrapper).before(html);
+    }, 100);
+}
 
 function add_students_dialog(frm) {
 	const d = new frappe.ui.Dialog({
